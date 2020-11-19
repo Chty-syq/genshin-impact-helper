@@ -186,6 +186,8 @@ if __name__ == "__main__":
 
   logging.info('Sleep for %s seconds ...' %(seconds))
 
+  sleep(seconds)
+  
   try:
     jdict = Sign(input().strip()).run()
     jstr = json.dumps(jdict, ensure_ascii=False)
