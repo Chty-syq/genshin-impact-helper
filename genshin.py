@@ -159,11 +159,6 @@ def makeResult(result:str, data=None):
 
 
 if __name__ == "__main__":
-  seconds = randint(10, 300)
-  logging.info('Sleep for %s seconds ...' %(seconds))
-
-  sleep(seconds)
-
   try:
     jdict = Sign(input().strip()).run()
     jstr = json.dumps(jdict, ensure_ascii=False)
