@@ -4,8 +4,10 @@ import requests
 import json
 import uuid
 import logging
-from time import sleep
-from random import randint
+import time
+import random
+import hashlib
+import string
 from requests.exceptions import *
 
 logging.basicConfig(
@@ -20,9 +22,13 @@ class ConfMeta(type):
     return 'https://webstatic.mihoyo.com/bbs/event/signin-ys/index.html'
 
   @property
+  def app_version(self):
+    return '2.1.0'
+
+  @property
   def ua(self):
     return 'Mozilla/5.0 (iPhone; CPU iPhone OS 14_0_1 like Mac OS X) ' \
-           'AppleWebKit/605.1.15 (KHTML, like Gecko) miHoYoBBS/2.1.0'
+           'AppleWebKit/605.1.15 (KHTML, like Gecko) miHoYoBBS/%s' %(self.app_version)
 
 
 class Conf(metaclass=ConfMeta):
@@ -33,7 +39,7 @@ class Roles(object):
   def __init__(self, cookie:str=None):
     if type(cookie) is not str:
       raise TypeError("%s want a %s but got %s" %(
-          self.__class__, type(__name__), type(cookie)))
+        self.__class__, type(__name__), type(cookie)))
 
     self._cookie = cookie
     self._url = "https://api-takumi.mihoyo.com/binding/api/" \
@@ -46,17 +52,17 @@ class Roles(object):
             Conf.index_url, 'true', actid, 'bbs', 'mys', 'icon')
 
     return {
-        'User-Agent': Conf.ua,
-        'Referer': ref,
-        'Accept-Encoding': 'gzip, deflate, br',
-        'Cookie': self._cookie
+      'User-Agent': Conf.ua,
+      'Referer': ref,
+      'Accept-Encoding': 'gzip, deflate, br',
+      'Cookie': self._cookie
     }
 
   def get_roles(self):
     try:
       jdict = json.loads(
               requests.Session().get(
-                  self._url, headers = self.get_header()).text)
+                self._url, headers = self.get_header()).text)
     except Exception as e:
       logging.error(e)
       raise HTTPError
@@ -68,7 +74,7 @@ class Sign(object):
   def __init__(self, cookie:str=None):
     if type(cookie) is not str:
       raise TypeError("%s want a %s but got %s" %(
-          self.__class__, type(__name__), type(cookie)))
+        self.__class__, type(__name__), type(cookie)))
 
     self._url = 'https://api-takumi.mihoyo.com/event/bbs_sign_reward/sign'
 
@@ -114,6 +120,19 @@ class Sign(object):
 
     self._cookie = cookie
 
+  # Provided by Steesha
+  def md5(self, text):
+    md5 = hashlib.md5()
+    md5.update(text.encode())
+    return (md5.hexdigest())
+
+  def get_DS(self):
+    n = self.md5(Conf.app_version)
+    i = str(int(time.time()))
+    r = ''.join(random.sample(string.ascii_lowercase + string.digits, 6))
+    c = self.md5("salt=" + n + "&t="+ i + "&r=" + r)
+    return i + "," + r + "," + c
+
   def get_header(self):
     actid = 'e202009291139501'
     ref = "%s?bbs_auth_required=%s&act_id=%s&utm_source=%s" \
@@ -121,27 +140,30 @@ class Sign(object):
             Conf.index_url, 'true', actid, 'bbs', 'mys', 'icon')
 
     return {
-        'User-Agent': Conf.ua,
-        'Referer': ref,
-        'Accept-Encoding': 'gzip, deflate, br',
-        'Cookie': self._cookie,
-        'x-rpc-device_id': str(uuid.uuid3(
-            uuid.NAMESPACE_URL, self._cookie)).replace('-','').upper()
+      'x-rpc-device_id': str(uuid.uuid3(
+        uuid.NAMESPACE_URL, self._cookie)).replace('-','').upper(),
+      'x-rpc-client_type': '5',
+      'Accept-Encoding': 'gzip, deflate, br',
+      'User-Agent': Conf.ua,
+      'Referer': ref,
+      'x-rpc-app_version': Conf.app_version,
+      'DS': self.get_DS(),
+      'Cookie': self._cookie
     }
 
   def run(self):
     logging.info('UID is %s' %(str(self._uid).replace(str(self._uid)[3:6],'***',1)))
 
     data = {
-        'act_id': 'e202009291139501',
-        'region': self._region,
-        'uid': self._uid
+      'act_id': 'e202009291139501',
+      'region': self._region,
+      'uid': self._uid
     }
 
     try:
       jdict = json.loads(requests.Session().post(
-          self._url, headers = self.get_header(),
-          data = json.dumps(data, ensure_ascii=False)).text)
+        self._url, headers = self.get_header(),
+        data = json.dumps(data, ensure_ascii=False)).text)
     except Exception as e:
       raise
 
@@ -159,6 +181,11 @@ def makeResult(result:str, data=None):
 
 
 if __name__ == "__main__":
+  seconds = random.randint(10, 300)
+  ret = -1
+
+  logging.info('Sleep for %s seconds ...' %(seconds))
+
   try:
     jdict = Sign(input().strip()).run()
     jstr = json.dumps(jdict, ensure_ascii=False)
@@ -177,7 +204,7 @@ if __name__ == "__main__":
   # -5003:    already signed in
   if code in [0, -5003]:
     result = makeResult('Success', jstr)
-    logging.info(result)
-  else:
-    logging.info(result)
-    exit(-100)
+    ret = 0
+
+  logging.info(result)
+  exit(ret)
