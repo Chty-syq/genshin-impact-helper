@@ -186,7 +186,7 @@ if __name__ == "__main__":
 
   logging.info('Sleep for %s seconds ...' %(seconds))
 
-  sleep(seconds)
+  time.sleep(seconds)
   
   try:
     jdict = Sign(input().strip()).run()
